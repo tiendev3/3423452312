@@ -1,0 +1,227 @@
+import pygame
+import sys
+import random
+
+
+pygame.init()
+
+SCREEN_WIDTH, SCREEN_HEIGHT = 900, 700
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption("Tài Xỉu")
+
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+GREY = (240, 240, 240)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+DARK_GREY = (50, 50, 50)
+LIGHT_GREY = (200, 200, 200)
+
+font = pygame.font.SysFont("Arial", 36)
+small_font = pygame.font.SysFont("Arial", 24)
+
+plate_image = pygame.image.load("dia.png")  # Đĩa
+lid_image = pygame.image.load("lid.png")  # Nắp
+plate_image = pygame.transform.scale(plate_image, (400, 400))
+lid_image = pygame.transform.scale(lid_image, (600, 400))
+
+plate_rect = plate_image.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+lid_rect = lid_image.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+
+lid_dragging = False
+lid_offset_x = 0
+lid_offset_y = 0
+lid_open = False
+dice_values = [1, 2, 3] 
+dice_positions = []
+
+dice_size = 50
+plate_radius = 200
+
+def generate_dice_positions():
+    positions = []
+    center_x, center_y = SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2
+    offsets = [(-70, -50), (0, 50), (70, -50)]
+    for dx, dy in offsets:
+        x = center_x + dx
+        y = center_y + dy
+        positions.append((x, y))
+    return positions
+
+dice_positions = generate_dice_positions()
+
+bet = None
+game_started = False
+game_over = False
+result_message = ""
+player_money = 2000000
+bet_amount = 0 
+bet_input = "" 
+bet_confirmed = False 
+
+def draw_dice_face(surface, x, y, size, value):
+    """Vẽ dấu chấm xúc sắc."""
+    pygame.draw.rect(surface, WHITE, (x, y, size, size))
+    pygame.draw.rect(surface, BLACK, (x, y, size, size), 2) 
+
+    cx, cy = x + size // 2, y + size // 2
+    offset = size // 4
+
+    dots = {
+        1: [(cx, cy)],
+        2: [(cx - offset, cy - offset), (cx + offset, cy + offset)],
+        3: [(cx - offset, cy - offset), (cx, cy), (cx + offset, cy + offset)],
+        4: [
+            (cx - offset, cy - offset),
+            (cx + offset, cy - offset),
+            (cx - offset, cy + offset),
+            (cx + offset, cy + offset),
+        ],
+        5: [
+            (cx - offset, cy - offset),
+            (cx + offset, cy - offset),
+            (cx, cy),
+            (cx - offset, cy + offset),
+            (cx + offset, cy + offset),
+        ],
+        6: [
+            (cx - offset, cy - offset),
+            (cx + offset, cy - offset),
+            (cx - offset, cy),
+            (cx + offset, cy),
+            (cx - offset, cy + offset),
+            (cx + offset, cy + offset),
+        ],
+    }
+
+    for dot in dots[value]:
+        pygame.draw.circle(surface, BLACK, dot, size // 10)
+
+def check_result():
+    total = sum(dice_values)
+    if (bet == "Tài" and total > 10) or (bet == "Xỉu" and total <= 10):
+        return "Bạn Thắng!"
+    else:
+        return "Bạn Thua!"
+
+def draw_interface():
+    screen.fill(GREY)
+    
+    screen.blit(plate_image, plate_rect)
+    
+    for i, (x, y) in enumerate(dice_positions):
+        draw_dice_face(screen, x, y, dice_size, dice_values[i])
+    if not lid_open:
+        screen.blit(lid_image, lid_rect)
+    
+    screen.blit(font.render(f"Tiền: {player_money} VND", True, BLACK), (20, 20))
+
+    if not game_started and not game_over and bet is None:
+        pygame.draw.rect(screen, DARK_GREY, (100, 500, 150, 50), border_radius=10)
+        pygame.draw.rect(screen, DARK_GREY, (300, 500, 150, 50), border_radius=10)
+        screen.blit(font.render("Tài", True, WHITE), (140, 510))
+        screen.blit(font.render("Xỉu", True, WHITE), (340, 510))
+
+    if bet is not None and not game_started and not game_over:
+        pygame.draw.rect(screen, LIGHT_GREY, (500, 500, 200, 50), border_radius=10)
+        screen.blit(small_font.render(f"Cược: {bet_input}", True, BLACK), (510, 510))
+
+        pygame.draw.rect(screen, LIGHT_GREY, (500, 570, 200, 50), border_radius=10)
+        screen.blit(small_font.render("Xác nhận cược", True, BLACK), (510, 580))
+
+    if game_over:
+        screen.blit(font.render(result_message, True, BLACK), (SCREEN_WIDTH // 2 - 100, 50))
+
+        pygame.draw.rect(screen, GREEN, (SCREEN_WIDTH // 2 - 75, SCREEN_HEIGHT - 100, 150, 50), border_radius=10)
+        screen.blit(font.render("Chơi lại", True, WHITE), (SCREEN_WIDTH // 2 - 50, SCREEN_HEIGHT - 90))
+
+    if player_money == 0:
+        screen.blit(font.render("Bạn đã hết tiền rồi!", True, RED), (SCREEN_WIDTH // 2 - 150, SCREEN_HEIGHT // 2 - 50))
+
+clock = pygame.time.Clock()
+while True:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+
+        if event.type == pygame.MOUSEBUTTONDOWN:
+
+            if not game_started and not game_over and bet is None:
+                if pygame.Rect(100, 500, 150, 50).collidepoint(event.pos):
+                    bet = "Tài"
+                elif pygame.Rect(300, 500, 150, 50).collidepoint(event.pos):
+                    bet = "Xỉu"
+
+            elif lid_rect.collidepoint(event.pos) and not lid_open:
+                lid_dragging = True
+                lid_offset_x = lid_rect.x - event.pos[0]
+                lid_offset_y = lid_rect.y - event.pos[1]
+
+            # Nút chơi lại
+            if game_over and pygame.Rect(SCREEN_WIDTH // 2 - 75, SCREEN_HEIGHT - 100, 150, 50).collidepoint(event.pos):
+                lid_open = False
+                lid_rect.center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
+                dice_positions = generate_dice_positions()
+                game_started = False
+                game_over = False
+                result_message = ""
+                bet_input = "" 
+                bet = None  
+                bet_confirmed = False 
+
+            if pygame.Rect(500, 570, 200, 50).collidepoint(event.pos):
+                if bet_input.isdigit():
+                    bet_amount = int(bet_input)
+                    if bet_amount <= player_money:
+                        bet_confirmed = True 
+                        game_started = True
+                        dice_values = [random.randint(1, 6) for _ in range(3)]
+                    else:
+                        result_message = "Không đủ tiền cược!"
+                else:
+                    result_message = "Vui lòng nhập số hợp lệ!"
+
+
+        elif event.type == pygame.MOUSEBUTTONUP:
+            lid_dragging = False
+            if lid_rect.colliderect(plate_rect) == False:  
+                lid_open = True
+                result_message = check_result()  
+                if result_message == "Bạn Thắng!" and bet_confirmed:
+                    player_money += bet_amount  
+                elif result_message == "Bạn Thua!" and bet_confirmed:
+                    player_money -= bet_amount 
+                bet_confirmed = False  
+                game_over = True
+
+        elif event.type == pygame.MOUSEMOTION and lid_dragging:
+            lid_rect.x = event.pos[0] + lid_offset_x
+            lid_rect.y = event.pos[1] + lid_offset_y
+
+        elif event.type == pygame.KEYDOWN:
+            if not game_started and not game_over:
+                if event.key == pygame.K_BACKSPACE:
+                    bet_input = bet_input[:-1]
+                elif event.key == pygame.K_RETURN:
+                    if bet_input.isdigit():
+                        bet_amount = int(bet_input)
+                        if bet_amount <= player_money:
+                            bet_confirmed = True 
+                            game_started = True
+                            dice_values = [random.randint(1, 6) for _ in range(3)]
+                        else:
+                            result_message = "Không đủ tiền cược!"
+                    else:
+                        result_message = "Vui lòng nhập số hợp lệ!"
+                else:
+                    bet_input += event.unicode
+
+
+    if player_money < 0:
+        player_money = 0
+
+    draw_interface()
+
+    pygame.display.flip()
+    clock.tick(60)
