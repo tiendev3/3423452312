@@ -6,7 +6,7 @@ from datetime import datetime
 import requests
 
 # URL của file vipkey.json (dạng txt): mỗi dòng key|dd-mm-yyyy
-VIP_KEY_URL = "https://raw.githubusercontent.com/tiendev3/3423452312/main/vipkey.txt"
+VIP_KEY_URL = "https://raw.githubusercontent.com/tiendev3/4746745645645645/refs/heads/main/keyvip.json"
 SECRET_KEY = "super-secret-key-tiendev"  # có thể đổi hoặc lấy từ env nếu muốn bảo mật hơn
 
 # Đọc file VIP key từ GitHub
